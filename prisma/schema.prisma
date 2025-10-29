@@ -1,0 +1,204 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("NEON_DB_URL")
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  Users     User[]
+  Documents Document[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  displayName  String?
+  role         String   @default("user")
+  orgId        String?
+  settings     Json?
+  apiKeyRef    String?
+  createdAt    DateTime @default(now())
+  lastSeenAt   DateTime?
+  Organization Organization? @relation(fields: [orgId], references: [id])
+  UsageRecords UsageRecord[]
+  Agents       AgentInstance[]
+  Feedback     Feedback[]
+  documents    Document[] @relation("ownerDocs")
+  UserTemplates UserTemplate[]
+}
+
+model Document {
+  id           String    @id @default(uuid())
+  title        String
+  sourceUrl    String?
+  provider     String
+  ownerId      String?
+  orgId        String?
+  sizeBytes    Int?
+  mimeType     String?
+  createdAt    DateTime  @default(now())
+  lastIngestAt DateTime?
+  meta         Json?
+  visibility   String    @default("private")
+  archived     Boolean   @default(false)
+  chunks       Chunk[]
+  owner        User?     @relation("ownerDocs", fields: [ownerId], references: [id])
+  organization Organization? @relation(fields: [orgId], references: [id])
+}
+
+model Chunk {
+  id         String  @id @default(uuid())
+  documentId String
+  chunkHash  String  @unique
+  text       String
+  tokenCount Int
+  position   Int
+  createdAt  DateTime @default(now())
+  Embedding  EmbeddingMeta?
+  Document   Document @relation(fields:[documentId], references:[id], onDelete: Cascade)
+}
+
+model EmbeddingMeta {
+  id              String  @id @default(uuid())
+  chunkId         String  @unique
+  vectorId        String
+  vectorLength    Int?
+  provider        String
+  costEstimateCts Int?    @map("cost_estimate_cents")
+  provenance      Json?
+  createdAt       DateTime @default(now())
+  Chunk           Chunk   @relation(fields:[chunkId], references:[id], onDelete: Cascade)
+}
+
+model Template {
+  id         String   @id @default(uuid())
+  name       String
+  kind       String
+  schema     Json
+  body       String
+  createdBy  String?
+  isPublic   Boolean  @default(false)
+  meta       Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime?
+  UserTemplates UserTemplate[]
+}
+
+model UserTemplate {
+  id         String   @id @default(uuid())
+  userId     String
+  templateId String
+  overrides  Json?
+  createdAt  DateTime @default(now())
+  User       User     @relation(fields:[userId], references:[id], onDelete: Cascade)
+  Template   Template @relation(fields:[templateId], references:[id], onDelete: Cascade)
+}
+
+model AgentInstance {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  kind      String
+  state     String   @default("idle")
+  plan      Json?
+  toggles   Json?
+  lastRunAt DateTime?
+  createdAt DateTime @default(now())
+  steps     AgentStep[]
+  User      User     @relation(fields:[userId], references:[id], onDelete: Cascade)
+}
+
+model AgentStep {
+  id         String   @id @default(uuid())
+  agentId    String
+  stepIndex  Int
+  input      Json
+  output     Json?
+  status     String   @default("pending")
+  startedAt  DateTime?
+  finishedAt DateTime?
+  error      String?
+  Agent      AgentInstance @relation(fields:[agentId], references:[id], onDelete: Cascade)
+}
+
+model ResearchStock {
+  id        String   @id @default(uuid())
+  topic     String
+  summary   String
+  tags      String[]
+  sources   String[]
+  provenance Json?
+  status    String   @default("draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime?
+}
+
+model AgentMemoryLong {
+  id          String   @id @default(uuid())
+  agentId     String
+  userId      String?
+  memoryType  String
+  content     String
+  importance  Int      @default(0)
+  createdAt   DateTime @default(now())
+  lastAccessed DateTime?
+  expiresAt   DateTime?
+}
+
+model Feedback {
+  id        String  @id @default(uuid())
+  userId    String?
+  targetType String
+  targetId  String?
+  rating    Int?
+  correction Json?
+  tags      String[]
+  createdAt DateTime @default(now())
+  user      User?   @relation(fields: [userId], references: [id])
+}
+
+model UsageRecord {
+  id               String  @id @default(uuid())
+  userId           String
+  feature          String
+  model            String?
+  tokens           Int?
+  costEstimateCts  Int?    @map("cost_estimate_cents")
+  meta             Json?
+  createdAt        DateTime @default(now())
+  User             User     @relation(fields:[userId], references:[id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String  @id @default(uuid())
+  actorUserId String?
+  action      String
+  targetType  String?
+  targetId    String?
+  payload     Json?
+  ip          String?
+  createdAt   DateTime @default(now())
+}
+
+model ToggleConfig {
+  id        String @id @default(uuid())
+  ownerType String
+  ownerId   String
+  key       String
+  value     Json
+  updatedAt DateTime @default(now())
+  @@unique([ownerType, ownerId, key])
+}
+
+model DedupLock {
+  id          String @id @default(uuid())
+  resourceKey String @unique
+  lockedAt    DateTime @default(now())
+  owner       String?
+}
