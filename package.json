@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@openai/chatkit-react": ">=1.1.1 <2.0.0",
-    "@prisma/client": "^6.18.0",
+    "@prisma/client": "^6.19.1",
     "fs-extra": "^11.3.2",
     "next": "^15.5.4",
     "prisma": "^6.18.0",
